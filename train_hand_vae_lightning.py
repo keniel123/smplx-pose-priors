@@ -29,6 +29,7 @@ warnings.filterwarnings("ignore", ".*does not have many workers.*")
 from hand_vae_prior import HandVAEPrior
 from hand_vae_prior_so3 import HandVAEPriorSO3
 from hand_vae_datamodule import HandVAEDataModule
+from config_utils import ConfigLoader, create_config_parser, override_config, print_config
 
 
 class HandVAELightningModule(pl.LightningModule):
@@ -415,116 +416,96 @@ class HandVAELightningModule(pl.LightningModule):
 
 def main():
     """Main training function"""
-    parser = argparse.ArgumentParser(description="Train Hand VAE Prior")
+    # Create base config parser
+    config_parser = create_config_parser()
 
-    # Model arguments
-    parser.add_argument(
-        "--model_type", type=str, default="standard", choices=["standard", "so3"]
-    )
-    parser.add_argument("--z_dim", type=int, default=24)
-    parser.add_argument("--hidden", type=int, default=256)
-    parser.add_argument("--n_layers", type=int, default=3)
-    parser.add_argument("--dropout", type=float, default=0.1)
-
-    # Training arguments
-    parser.add_argument("--learning_rate", type=float, default=3e-4)
-    parser.add_argument("--weight_decay", type=float, default=1e-4)
-    parser.add_argument("--batch_size", type=int, default=8192)
-    parser.add_argument("--max_epochs", type=int, default=100)
-    parser.add_argument("--kl_warmup_epochs", type=int, default=10)
-    parser.add_argument("--beta_max", type=float, default=1.0)
-    parser.add_argument("--free_bits", type=float, default=0.0)
-
-    # Data arguments
-    parser.add_argument("--data_dir", type=str, default="../data")
-    parser.add_argument("--splits_dir", type=str, default="dataset_splits")
-    parser.add_argument(
-        "--consolidated_dir",
-        type=str,
-        default=None,
-        help="Use consolidated NPZ files instead of multi-file splits",
-    )
-    parser.add_argument("--num_workers", type=int, default=4)
-
-    # Training arguments
-    parser.add_argument("--accelerator", type=str, default="auto")
-    parser.add_argument("--devices", type=str, default="auto")
-    parser.add_argument("--precision", type=str, default="16-mixed")
-    parser.add_argument(
-        "--strategy",
-        type=str,
-        default="auto",
-        help="Training strategy (auto, ddp, ddp_find_unused_parameters_false, etc.)",
-    )
-    parser.add_argument(
-        "--num_nodes",
-        type=int,
-        default=1,
-        help="Number of nodes for multi-node training",
-    )
-    parser.add_argument(
-        "--node_rank", type=int, default=0, help="Node rank for multi-node training"
-    )
-
-    # Logging
-    parser.add_argument(
-        "--logger", type=str, default="tensorboard", choices=["tensorboard", "wandb"]
-    )
-    parser.add_argument("--project_name", type=str, default="hand-vae-prior")
-    parser.add_argument("--experiment_name", type=str, default=None)
-
-    # Checkpointing
-    parser.add_argument("--checkpoint_dir", type=str, default="checkpoints")
-    parser.add_argument("--save_top_k", type=int, default=3)
+    # Add additional arguments specific to this trainer
+    parser = argparse.ArgumentParser(description='Train Hand VAE Prior',
+                                   parents=[config_parser])
 
     args = parser.parse_args()
 
+    print("🚀 Training Hand VAE Prior with YAML Configuration")
+
+    # Load configuration
+    config_loader = ConfigLoader()
+    config = config_loader.load_config(args.config)
+
+    # Apply command line overrides
+    if args.override:
+        config = override_config(config, args.override)
+
+    # Print final configuration
+    print_config(config, "Hand VAE Configuration")
+
     # Set experiment name
-    if args.experiment_name is None:
-        args.experiment_name = f"{args.model_type}_z{args.z_dim}_h{args.hidden}"
+    experiment_name = config['logging'].get('experiment_name')
+    if experiment_name is None:
+        experiment_name = f"{config['model']['type']}_z{config['model']['z_dim']}_h{config['model']['hidden']}"
 
-    print(f"🚀 Training {args.model_type.upper()} Hand VAE Prior")
-    print(f"📊 Experiment: {args.experiment_name}")
+    print(f"📊 Experiment: {experiment_name}")
 
-    print(f"📁 Using multi-file data from {args.splits_dir}")
-    datamodule = HandVAEDataModule(
-        data_dir=args.data_dir,
-        splits_dir=args.splits_dir,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        return_dict=False,
-        standardize=True,
-    )
+    # Setup data module
+    if config['data']['consolidated_dir']:
+        print(f"📁 Using consolidated data from {config['data']['consolidated_dir']}")
+        # Import consolidated datamodule if needed
+        try:
+            from test_consolidated_vae import ConsolidatedHandDataModule
+            datamodule = ConsolidatedHandDataModule(
+                consolidated_dir=config['data']['consolidated_dir'],
+                batch_size=config['training']['batch_size'],
+                return_dict=False
+            )
+        except ImportError:
+            print("❌ Consolidated datamodule not available, falling back to regular datamodule")
+            datamodule = HandVAEDataModule(
+                data_dir=config['data']['data_dir'],
+                splits_dir=config['data']['splits_dir'],
+                batch_size=config['training']['batch_size'],
+                num_workers=config['data']['num_workers'],
+                return_dict=False,
+                standardize=True,
+            )
+    else:
+        print(f"📁 Using multi-file data from {config['data']['splits_dir']}")
+        datamodule = HandVAEDataModule(
+            data_dir=config['data']['data_dir'],
+            splits_dir=config['data']['splits_dir'],
+            batch_size=config['training']['batch_size'],
+            num_workers=config['data']['num_workers'],
+            return_dict=False,
+            standardize=True,
+        )
 
     # Create model
     model = HandVAELightningModule(
-        model_type=args.model_type,
-        z_dim=args.z_dim,
-        hidden=args.hidden,
-        n_layers=args.n_layers,
-        dropout=args.dropout,
-        learning_rate=args.learning_rate,
-        weight_decay=args.weight_decay,
-        kl_warmup_epochs=args.kl_warmup_epochs,
-        beta_max=args.beta_max,
-        free_bits=args.free_bits,
+        model_type=config['model']['type'],
+        z_dim=config['model']['z_dim'],
+        hidden=config['model']['hidden'],
+        n_layers=config['model']['n_layers'],
+        dropout=config['model']['dropout'],
+        learning_rate=config['training']['learning_rate'],
+        weight_decay=config['training']['weight_decay'],
+        kl_warmup_epochs=config['training']['kl_warmup_epochs'],
+        beta_max=config['training']['beta_max'],
+        free_bits=config['training']['free_bits'],
     )
 
     # Setup logger
-    if args.logger == "tensorboard":
+    if config['logging']['logger'] == "tensorboard":
         logger = TensorBoardLogger(
-            save_dir="logs", name=args.project_name, version=args.experiment_name
+            save_dir="logs", name=config['logging']['project_name'], version=experiment_name
         )
-    elif args.logger == "wandb":
-        logger = WandbLogger(project=args.project_name, name=args.experiment_name)
+    elif config['logging']['logger'] == "wandb":
+        logger = WandbLogger(project=config['logging']['project_name'], name=experiment_name)
 
     # Setup callbacks
     checkpoint_callback = ModelCheckpoint(
-        dirpath=Path(args.checkpoint_dir) / args.experiment_name,
+        dirpath=Path(config['logging']['checkpoint_dir']) / experiment_name,
         filename="hand_vae_{epoch:02d}_{val_loss:.4f}",
         monitor="val/loss",
         mode="min",
-        save_top_k=args.save_top_k,
+        save_top_k=config['logging']['save_top_k'],
         save_last=True,
     )
 
@@ -536,16 +517,16 @@ def main():
 
     # Create trainer
     trainer = pl.Trainer(
-        max_epochs=args.max_epochs,
-        accelerator=args.accelerator,
-        devices=args.devices,
-        precision=args.precision,
-        strategy=args.strategy,
-        num_nodes=args.num_nodes,
+        max_epochs=config['training']['max_epochs'],
+        accelerator=config['hardware']['accelerator'],
+        devices=config['hardware']['devices'],
+        precision=config['hardware']['precision'],
+        strategy=config['hardware']['strategy'],
+        num_nodes=config['hardware']['num_nodes'],
         logger=logger,
         callbacks=[checkpoint_callback, early_stopping, lr_monitor],
         gradient_clip_val=1.0,
-        log_every_n_steps=50,
+        log_every_n_steps=config['logging']['log_every_n_steps'],
         enable_progress_bar=True,
         enable_model_summary=True,
     )

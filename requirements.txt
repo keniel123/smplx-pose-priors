@@ -15,6 +15,9 @@ seaborn>=0.11.0
 # Progress bars and utilities
 tqdm>=4.64.0
 
+# Configuration files
+PyYAML>=6.0
+
 # File handling
 pathlib>=1.0.0
 

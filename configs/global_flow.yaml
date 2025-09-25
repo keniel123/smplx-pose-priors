@@ -1,0 +1,61 @@
+# Global Flow Configuration
+# Full pose conditional normalizing flows with ActNorm
+
+model:
+  pose_dim: 165      # 55 joints * 3 = 165 dimensions
+  cond_dim: 0        # Conditioning dimension (0 for no conditioning)
+  hidden: 512        # Hidden layer size
+  K: 6              # Number of coupling layers
+  use_actnorm: true  # Use ActNorm for training stability
+  use_conditioning: false  # Enable experimental conditioning
+
+training:
+  learning_rate: 1e-3
+  scheduler_type: "cosine"  # Options: "cosine", "plateau"
+  max_epochs: 30
+  patience: 10
+  min_delta: 1e-4
+  gradient_clip_val: 1.0
+
+data:
+  data_dir: "/Users/kenielpeart/Downloads/hand_prior/code"
+  batch_size: 32
+  num_workers: 0
+  return_dict: false
+
+logging:
+  checkpoint_dir: "checkpoints/global-flow-real-data"
+  log_every_n_steps: 50
+  logger_name: "global_flow_real_data"
+
+hardware:
+  accelerator: "auto"
+  devices: "auto"
+
+# Alternative configurations
+# For larger model:
+# model:
+#   hidden: 768
+#   K: 8
+
+# With conditioning (experimental):
+# model:
+#   use_conditioning: true
+#   cond_dim: 512
+
+# For high-quality results:
+# training:
+#   learning_rate: 5e-4
+#   max_epochs: 50
+#   patience: 15
+# model:
+#   hidden: 768
+#   K: 10
+
+# For faster training:
+# training:
+#   learning_rate: 2e-3
+#   max_epochs: 20
+# model:
+#   hidden: 256
+#   K: 4

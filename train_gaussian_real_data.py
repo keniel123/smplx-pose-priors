@@ -19,6 +19,7 @@ from pathlib import Path
 
 from joint_limit_gaussian import JointLimitGaussian
 from comprehensive_pose_datamodule import ComprehensivePoseDataModule
+from config_utils import ConfigLoader, create_config_parser, override_config, print_config
 
 
 # Joint conversion now handled in comprehensive_pose_datamodule.py
@@ -104,45 +105,12 @@ class GaussianRealDataModule(pl.LightningModule):
 
 def parse_args():
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description='Train Gaussian Prior with Real SMPL-X Data')
+    # Create base config parser
+    config_parser = create_config_parser()
 
-    # Data arguments
-    parser.add_argument('--data_dir', type=str, default='/Users/kenielpeart/Downloads/hand_prior/code',
-                       help='Directory containing NPZ data files')
-    parser.add_argument('--batch_size', type=int, default=32,
-                       help='Batch size for training')
-    parser.add_argument('--num_workers', type=int, default=0,
-                       help='Number of data loading workers')
-
-    # Model arguments
-    parser.add_argument('--lr', type=float, default=1e-2,
-                       help='Learning rate')
-    parser.add_argument('--scheduler_type', type=str, default='step', choices=['step', 'cosine'],
-                       help='Learning rate scheduler type')
-    parser.add_argument('--step_size', type=int, default=30,
-                       help='Step size for step scheduler')
-    parser.add_argument('--gamma', type=float, default=0.5,
-                       help='Gamma for step scheduler')
-
-    # Training arguments
-    parser.add_argument('--max_epochs', type=int, default=20,
-                       help='Maximum number of training epochs')
-    parser.add_argument('--patience', type=int, default=10,
-                       help='Early stopping patience')
-    parser.add_argument('--min_delta', type=float, default=1e-4,
-                       help='Minimum change for early stopping')
-
-    # Logging arguments
-    parser.add_argument('--checkpoint_dir', type=str, default='checkpoints/gaussian-real-data',
-                       help='Directory to save checkpoints')
-    parser.add_argument('--log_every_n_steps', type=int, default=50,
-                       help='Log every N steps')
-
-    # Hardware arguments
-    parser.add_argument('--accelerator', type=str, default='auto',
-                       help='Accelerator to use')
-    parser.add_argument('--devices', type=str, default='auto',
-                       help='Devices to use')
+    # Add additional arguments specific to this trainer
+    parser = argparse.ArgumentParser(description='Train Gaussian Prior with Real SMPL-X Data',
+                                   parents=[config_parser])
 
     return parser.parse_args()
 
@@ -152,11 +120,20 @@ def train_gaussian_with_real_data():
     args = parse_args()
 
     print("🔥 Training Gaussian Prior with Real SMPL-X Data")
-    print("=" * 60)
-    print(f"Arguments: {vars(args)}")
 
-    # Configuration
-    data_dir = args.data_dir
+    # Load configuration
+    config_loader = ConfigLoader()
+    config = config_loader.load_config(args.config)
+
+    # Apply command line overrides
+    if args.override:
+        config = override_config(config, args.override)
+
+    # Print final configuration
+    print_config(config, "Gaussian Prior Configuration")
+
+    # Extract configuration values
+    data_dir = config['data']['data_dir']
 
     # Find NPZ files
     npz_files = list(Path(data_dir).glob("*.npz"))
@@ -174,9 +151,9 @@ def train_gaussian_with_real_data():
     print("\n🔧 Setting up data module...")
     data_module = ComprehensivePoseDataModule(
         data_dir=str(data_dir),
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        return_dict=False  # Return raw (53, 3) tensors
+        batch_size=config['data']['batch_size'],
+        num_workers=config['data']['num_workers'],
+        return_dict=config['data']['return_dict']
     )
 
     # Setup data
@@ -186,14 +163,14 @@ def train_gaussian_with_real_data():
     print("\n🔧 Creating Lightning module...")
     model = GaussianRealDataModule(
         data_dir=str(data_dir),
-        lr=args.lr,
-        scheduler_type=args.scheduler_type,
-        step_size=args.step_size,
-        gamma=args.gamma
+        lr=config['training']['learning_rate'],
+        scheduler_type=config['training']['scheduler_type'],
+        step_size=config['training']['step_size'],
+        gamma=config['training']['gamma']
     )
 
     # Create checkpoint directory
-    checkpoint_dir = args.checkpoint_dir
+    checkpoint_dir = config['logging']['checkpoint_dir']
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     # Setup callbacks
@@ -210,8 +187,8 @@ def train_gaussian_with_real_data():
     early_stopping = EarlyStopping(
         monitor="val/nll",
         mode="min",
-        patience=args.patience,
-        min_delta=args.min_delta,
+        patience=config['training']['patience'],
+        min_delta=config['training']['min_delta'],
         verbose=True
     )
 
@@ -220,18 +197,18 @@ def train_gaussian_with_real_data():
     # Create logger
     logger = TensorBoardLogger(
         save_dir="lightning_logs",
-        name="gaussian_real_data",
+        name=config['logging']['logger_name'],
         version=None
     )
 
     # Create trainer
     trainer = pl.Trainer(
-        max_epochs=args.max_epochs,
-        accelerator=args.accelerator,
-        devices=args.devices,
+        max_epochs=config['training']['max_epochs'],
+        accelerator=config['hardware']['accelerator'],
+        devices=config['hardware']['devices'],
         logger=logger,
         callbacks=[checkpoint_callback, early_stopping, lr_monitor],
-        log_every_n_steps=args.log_every_n_steps,
+        log_every_n_steps=config['logging']['log_every_n_steps'],
         val_check_interval=1.0,
         enable_model_summary=True,
         enable_progress_bar=True,
@@ -239,10 +216,10 @@ def train_gaussian_with_real_data():
     )
 
     print(f"🚀 Starting training...")
-    print(f"  Max epochs: {args.max_epochs}")
+    print(f"  Max epochs: {config['training']['max_epochs']}")
     print(f"  Learning rate: {model.lr}")
     print(f"  Scheduler: {model.scheduler_type}")
-    print(f"  Batch size: {args.batch_size}")
+    print(f"  Batch size: {config['data']['batch_size']}")
     print(f"  Checkpoints: {checkpoint_dir}")
 
     try:

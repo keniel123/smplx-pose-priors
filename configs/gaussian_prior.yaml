@@ -1,0 +1,44 @@
+# Gaussian Prior Configuration
+# Simple baseline pose prior with per-joint Gaussian distributions
+
+model:
+  # Gaussian model parameters (no architectural params - just 55 joints * 3 dims)
+  num_joints: 55
+  dim: 3
+
+training:
+  learning_rate: 1e-2
+  scheduler_type: "step"  # Options: "step", "cosine"
+  step_size: 30  # For step scheduler
+  gamma: 0.5     # For step scheduler
+  max_epochs: 20
+  patience: 10
+  min_delta: 1e-4
+
+data:
+  data_dir: "/Users/kenielpeart/Downloads/hand_prior/code"
+  batch_size: 32
+  num_workers: 0
+  return_dict: false
+
+logging:
+  checkpoint_dir: "checkpoints/gaussian-real-data"
+  log_every_n_steps: 50
+  logger_name: "gaussian_real_data"
+
+hardware:
+  accelerator: "auto"
+  devices: "auto"
+
+# Alternative configurations
+# For faster training:
+# training:
+#   learning_rate: 2e-2
+#   max_epochs: 10
+#   scheduler_type: "cosine"
+
+# For more thorough training:
+# training:
+#   learning_rate: 5e-3
+#   max_epochs: 50
+#   patience: 20

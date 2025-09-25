@@ -15,11 +15,11 @@ This repository implements conditional normalizing flows and probabilistic model
 
 ### Environment Setup
 ```bash
-# Install all dependencies
+# Install all dependencies (now includes PyYAML for config files)
 pip install -r requirements.txt
 
 # Or install individual packages:
-pip install torch pytorch-lightning tensorboard numpy matplotlib seaborn tqdm wandb
+pip install torch pytorch-lightning tensorboard numpy matplotlib seaborn tqdm wandb PyYAML
 ```
 
 ### Data Setup
@@ -32,38 +32,34 @@ Your NPZ files should be in the project directory:
 └── other_data.npz       # Any other pose NPZ files
 ```
 
-## 🏃‍♂️ Running the Models
+## 🏃‍♂️ Running the Models (YAML Config-Based)
+
+All models now use YAML configuration files for cleaner parameter management. Configuration files are located in the `configs/` directory.
 
 ### 1. Hand VAE (Hand Pose Compression)
 ```bash
-# Basic training (default settings)
-python train_hand_vae_lightning.py
+# Using default config
+python train_hand_vae_lightning.py --config configs/hand_vae.yaml
 
-# With custom arguments
-python train_hand_vae_lightning.py \
-    --model_type standard \
-    --z_dim 24 \
-    --hidden 256 \
-    --learning_rate 3e-4 \
-    --batch_size 8192 \
-    --max_epochs 100
+# Using config name (auto-detects .yaml extension)
+python train_hand_vae_lightning.py --config hand_vae
 
-# SO3 variant for rotation-aware training
-python train_hand_vae_lightning.py \
-    --model_type so3 \
-    --z_dim 32 \
-    --hidden 512
+# With parameter overrides
+python train_hand_vae_lightning.py --config hand_vae \
+    --override model.z_dim=32 training.batch_size=4096 training.max_epochs=50
+
+# SO3 variant (modify config or use overrides)
+python train_hand_vae_lightning.py --config hand_vae \
+    --override model.type=so3 model.z_dim=32 model.hidden=512
 ```
 
-**Available Arguments:**
-- `--model_type`: Choose 'standard' or 'so3' variant (default: standard)
-- `--z_dim`: Latent dimension (default: 24)
-- `--hidden`: Hidden layer size (default: 256)
-- `--learning_rate`: Learning rate (default: 3e-4)
-- `--batch_size`: Batch size (default: 8192)
-- `--max_epochs`: Training epochs (default: 100)
-- `--data_dir`: Data directory (default: ../data)
-- `--logger`: Use 'tensorboard' or 'wandb' (default: tensorboard)
+**Config file:** `configs/hand_vae.yaml`
+**Key parameters:**
+- `model.type`: "standard" or "so3"
+- `model.z_dim`: Latent dimension (24)
+- `training.learning_rate`: Learning rate (3e-4)
+- `training.batch_size`: Batch size (8192)
+- `training.max_epochs`: Training epochs (100)
 
 **Features:**
 - Compresses hand poses to latent space
@@ -73,34 +69,25 @@ python train_hand_vae_lightning.py \
 
 ### 2. Gaussian Prior (Baseline Model)
 ```bash
-# Basic training (default settings)
-python train_gaussian_real_data.py
+# Using default config
+python train_gaussian_real_data.py --config gaussian_prior
 
-# With custom arguments
-python train_gaussian_real_data.py \
-    --lr 1e-2 \
-    --batch_size 32 \
-    --max_epochs 20 \
-    --scheduler_type step
+# With parameter overrides
+python train_gaussian_real_data.py --config gaussian_prior \
+    --override training.learning_rate=5e-3 data.batch_size=64 training.max_epochs=50
 
-# Different configuration
-python train_gaussian_real_data.py \
-    --lr 5e-3 \
-    --batch_size 64 \
-    --max_epochs 50 \
-    --scheduler_type cosine \
-    --patience 15
+# Different scheduler
+python train_gaussian_real_data.py --config gaussian_prior \
+    --override training.scheduler_type=cosine training.patience=15
 ```
 
-**Available Arguments:**
-- `--data_dir`: Data directory (default: current directory)
-- `--batch_size`: Batch size (default: 32)
-- `--lr`: Learning rate (default: 1e-2)
-- `--scheduler_type`: 'step' or 'cosine' (default: step)
-- `--max_epochs`: Training epochs (default: 20)
-- `--patience`: Early stopping patience (default: 10)
-- `--num_workers`: Data loading workers (default: 0)
-- `--accelerator`: Hardware accelerator (default: auto)
+**Config file:** `configs/gaussian_prior.yaml`
+**Key parameters:**
+- `training.learning_rate`: Learning rate (1e-2)
+- `training.scheduler_type`: "step" or "cosine"
+- `data.batch_size`: Batch size (32)
+- `training.max_epochs`: Training epochs (20)
+- `training.patience`: Early stopping patience (10)
 
 **Features:**
 - Fastest training (~5-10 minutes)
@@ -110,38 +97,27 @@ python train_gaussian_real_data.py \
 
 ### 3. Joint Flow (Per-Joint Conditional Flows)
 ```bash
-# Basic training (default settings)
-python train_joint_flow_real_data.py
-
-# With custom arguments
-python train_joint_flow_real_data.py \
-    --hidden 128 \
-    --K 4 \
-    --lr 1e-3 \
-    --batch_size 16 \
-    --max_epochs 50
+# Using default config
+python train_joint_flow_real_data.py --config joint_flow
 
 # Larger model configuration
-python train_joint_flow_real_data.py \
-    --hidden 256 \
-    --K 6 \
-    --lr 5e-4 \
-    --batch_size 32 \
-    --max_epochs 100 \
-    --scheduler_type plateau
+python train_joint_flow_real_data.py --config joint_flow \
+    --override model.hidden=256 model.K=6 data.batch_size=32 training.max_epochs=100
+
+# Different scheduler and learning rate
+python train_joint_flow_real_data.py --config joint_flow \
+    --override training.learning_rate=5e-4 training.scheduler_type=plateau
 ```
 
-**Available Arguments:**
-- `--data_dir`: Data directory (default: current directory)
-- `--batch_size`: Batch size (default: 16)
-- `--hidden`: Hidden layer size (default: 128)
-- `--K`: Number of coupling layers (default: 4)
-- `--lr`: Learning rate (default: 1e-3)
-- `--weight_decay`: Weight decay (default: 1e-5)
-- `--grad_clip_val`: Gradient clipping (default: 1.0)
-- `--scheduler_type`: 'cosine' or 'plateau' (default: cosine)
-- `--max_epochs`: Training epochs (default: 50)
-- `--patience`: Early stopping patience (default: 15)
+**Config file:** `configs/joint_flow.yaml`
+**Key parameters:**
+- `model.hidden`: Hidden layer size (128)
+- `model.K`: Number of coupling layers (4)
+- `training.learning_rate`: Learning rate (1e-3)
+- `training.weight_decay`: Weight decay (1e-5)
+- `data.batch_size`: Batch size (16)
+- `training.max_epochs`: Training epochs (50)
+- `training.grad_clip_val`: Gradient clipping (1.0)
 
 **Features:**
 - Each joint conditioned on parent joint
@@ -151,48 +127,74 @@ python train_joint_flow_real_data.py \
 
 ### 4. Global Flow (Full Pose Flows)
 ```bash
-# Basic training (default settings)
-python train_global_flow_real_data.py
+# Using default config
+python train_global_flow_real_data.py --config global_flow
 
-# With custom arguments
-python train_global_flow_real_data.py \
-    --hidden 512 \
-    --K 6 \
-    --lr 1e-3 \
-    --batch_size 32 \
-    --max_epochs 30 \
-    --use_actnorm
+# Larger model configuration
+python train_global_flow_real_data.py --config global_flow \
+    --override model.hidden=768 model.K=8 data.batch_size=64 training.max_epochs=50
 
-# Larger model with conditioning
-python train_global_flow_real_data.py \
-    --hidden 768 \
-    --K 8 \
-    --lr 5e-4 \
-    --batch_size 64 \
-    --max_epochs 50 \
-    --use_actnorm \
-    --use_conditioning \
-    --scheduler_type plateau
+# With experimental conditioning
+python train_global_flow_real_data.py --config global_flow \
+    --override model.use_conditioning=true training.scheduler_type=plateau
 ```
 
-**Available Arguments:**
-- `--data_dir`: Data directory (default: current directory)
-- `--batch_size`: Batch size (default: 32)
-- `--hidden`: Hidden layer size (default: 512)
-- `--K`: Number of coupling layers (default: 6)
-- `--lr`: Learning rate (default: 1e-3)
-- `--use_actnorm`: Use ActNorm layers (default: True)
-- `--scheduler_type`: 'cosine' or 'plateau' (default: cosine)
-- `--use_conditioning`: Enable experimental conditioning (default: False)
-- `--max_epochs`: Training epochs (default: 30)
-- `--patience`: Early stopping patience (default: 10)
-- `--gradient_clip_val`: Gradient clipping (default: 1.0)
+**Config file:** `configs/global_flow.yaml`
+**Key parameters:**
+- `model.hidden`: Hidden layer size (512)
+- `model.K`: Number of coupling layers (6)
+- `model.use_actnorm`: Use ActNorm layers (true)
+- `model.use_conditioning`: Enable conditioning (false)
+- `training.learning_rate`: Learning rate (1e-3)
+- `data.batch_size`: Batch size (32)
+- `training.max_epochs`: Training epochs (30)
+- `training.gradient_clip_val`: Gradient clipping (1.0)
 
 **Features:**
 - Models entire pose as high-dimensional distribution
 - Uses ActNorm for training stability
 - Best quality but longest training time
 - Captures global pose correlations
+
+## ⚙️ Configuration System
+
+### YAML Config Files
+All training scripts use YAML configuration files located in `configs/`:
+- `configs/hand_vae.yaml` - Hand VAE configuration
+- `configs/gaussian_prior.yaml` - Gaussian prior configuration
+- `configs/joint_flow.yaml` - Joint flow configuration
+- `configs/global_flow.yaml` - Global flow configuration
+
+### Using Configs
+```bash
+# Method 1: Full path
+python train_gaussian_real_data.py --config configs/gaussian_prior.yaml
+
+# Method 2: Config name (auto-detects .yaml extension)
+python train_gaussian_real_data.py --config gaussian_prior
+
+# Method 3: Override specific parameters
+python train_gaussian_real_data.py --config gaussian_prior \
+    --override training.learning_rate=2e-3 data.batch_size=64
+```
+
+### Override Syntax
+Use dot notation to override nested parameters:
+```bash
+--override training.learning_rate=1e-4        # Set learning rate
+--override model.hidden=256                   # Set model architecture
+--override data.batch_size=128                # Set batch size
+--override training.max_epochs=100            # Set training epochs
+--override model.use_actnorm=false            # Disable ActNorm
+```
+
+### Creating Custom Configs
+Copy and modify existing config files:
+```bash
+cp configs/gaussian_prior.yaml configs/my_gaussian.yaml
+# Edit my_gaussian.yaml with your parameters
+python train_gaussian_real_data.py --config my_gaussian
+```
 
 ## 📊 Monitoring Training
 

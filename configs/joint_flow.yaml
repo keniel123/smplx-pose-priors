@@ -1,0 +1,53 @@
+# Joint Flow Configuration
+# Per-joint conditional normalizing flows with kinematic constraints
+
+model:
+  num_joints: 55  # SMPL-X joints (including eye joints as zeros)
+  cond_dim: 3     # Conditioning dimension (parent joint pose)
+  hidden: 128     # Hidden layer size
+  K: 4           # Number of coupling layers
+
+training:
+  learning_rate: 1e-3
+  weight_decay: 1e-5
+  grad_clip_val: 1.0
+  scheduler_type: "cosine"  # Options: "cosine", "plateau"
+  max_epochs: 50
+  patience: 15
+  min_delta: 1e-4
+
+data:
+  data_dir: "/Users/kenielpeart/Downloads/hand_prior/code"
+  batch_size: 16  # Smaller batch size for flows
+  num_workers: 0
+  return_dict: false
+
+logging:
+  checkpoint_dir: "checkpoints/joint-flow-real-data"
+  log_every_n_steps: 50
+  logger_name: "joint_flow_real_data"
+
+hardware:
+  accelerator: "auto"
+  devices: "auto"
+
+# Alternative configurations
+# For larger model:
+# model:
+#   hidden: 256
+#   K: 6
+
+# For faster convergence:
+# training:
+#   learning_rate: 2e-3
+#   scheduler_type: "plateau"
+#   batch_size: 32
+
+# For high-quality results:
+# training:
+#   learning_rate: 5e-4
+#   max_epochs: 100
+#   patience: 25
+# model:
+#   hidden: 256
+#   K: 8

@@ -1,0 +1,47 @@
+# Hand VAE Configuration
+# Train hand pose VAE with encoder/decoder architecture
+
+model:
+  type: "standard"  # Options: "standard", "so3"
+  z_dim: 24
+  hidden: 256
+  n_layers: 3
+  dropout: 0.1
+
+training:
+  learning_rate: 3e-4
+  weight_decay: 1e-4
+  batch_size: 8192
+  max_epochs: 100
+  kl_warmup_epochs: 10
+  beta_max: 1.0
+  free_bits: 0.0
+
+data:
+  data_dir: "../data"
+  splits_dir: "dataset_splits"
+  consolidated_dir: null  # Set path for consolidated data, null for regular data
+  num_workers: 4
+
+logging:
+  logger: "tensorboard"  # Options: "tensorboard", "wandb"
+  project_name: "hand-vae-prior"
+  experiment_name: null  # Auto-generated if null
+  checkpoint_dir: "checkpoints"
+  save_top_k: 3
+  log_every_n_steps: 50
+
+hardware:
+  accelerator: "auto"
+  devices: "auto"
+  precision: "16-mixed"
+  strategy: "auto"
+  num_nodes: 1
+  node_rank: 0
+
+# Alternative configurations
+# For SO3 variant:
+# model:
+#   type: "so3"
+#   z_dim: 32
+#   hidden: 512
