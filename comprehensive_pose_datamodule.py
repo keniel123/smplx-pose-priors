@@ -2,14 +2,15 @@
 """
 Comprehensive SMPL-X Pose DataModule
 
-Loads all SMPL-X pose parameters:
-- Global orientation (3 params)
-- Body pose (63 params)
-- Jaw pose (3 params)
-- Left hand pose (45 params)
-- Right hand pose (45 params)
+Loads all SMPL-X pose parameters and returns 55-joint format:
+- Global orientation (1 joint)
+- Body pose (21 joints)
+- Jaw pose (1 joint)
+- Eye poses (2 joints, set to zeros)
+- Left hand pose (15 joints)
+- Right hand pose (15 joints)
 
-Returns axis-angle format (B, 159) -> reshaped to (B, 53, 3)
+Returns axis-angle format (B, 165) -> reshaped to (B, 55, 3)
 """
 
 import torch
@@ -95,10 +96,31 @@ class ComprehensivePoseDataset(Dataset):
                     poses_per_file.append(np.zeros((n_samples, 45)))
 
                 # Concatenate all pose components: 3 + 63 + 3 + 45 + 45 = 159
-                file_poses = np.concatenate(poses_per_file, axis=1)
-                all_poses.append(file_poses)
+                file_poses_159 = np.concatenate(poses_per_file, axis=1)
 
-                print(f"  📁 {Path(npz_file).name}: {file_poses.shape} -> Total 159D poses")
+                # Convert to 55 joints (165D) by inserting eye joints as zeros
+                n_samples = file_poses_159.shape[0]
+                file_poses_165 = np.zeros((n_samples, 165))  # 55 * 3 = 165
+
+                # Reshape 159D to (N, 53, 3) for processing
+                poses_53x3 = file_poses_159.reshape(n_samples, 53, 3)
+
+                # Create 55-joint structure
+                poses_55x3 = np.zeros((n_samples, 55, 3))
+
+                # Copy joints 0-22 (global orient + body + jaw)
+                poses_55x3[:, :23, :] = poses_53x3[:, :23, :]
+
+                # Joints 23, 24 (eye joints) stay as zeros
+
+                # Copy joints 25-54 (hands) from source joints 23-52
+                poses_55x3[:, 25:, :] = poses_53x3[:, 23:, :]
+
+                # Flatten back to (N, 165)
+                file_poses_165 = poses_55x3.reshape(n_samples, 165)
+                all_poses.append(file_poses_165)
+
+                print(f"  📁 {Path(npz_file).name}: {file_poses_159.shape} -> {file_poses_165.shape} (55 joints with eye zeros)")
 
             except Exception as e:
                 print(f"❌ Error loading {npz_file}: {e}")
@@ -109,7 +131,7 @@ class ComprehensivePoseDataset(Dataset):
 
         # Concatenate all files
         combined_poses = np.concatenate(all_poses, axis=0)
-        print(f"📊 Combined shape: {combined_poses.shape} (should be N x 159)")
+        print(f"📊 Combined shape: {combined_poses.shape} (should be N x 165 for 55 joints)")
 
         return combined_poses
 
@@ -117,30 +139,31 @@ class ComprehensivePoseDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx: int) -> Union[torch.Tensor, Dict[str, torch.Tensor]]:
-        pose_159d = self.data[idx]  # Shape: (159,)
+        pose_165d = self.data[idx]  # Shape: (165,)
 
         # Apply standardization if available
         if self.standardize and self.stats is not None:
-            pose_159d = (pose_159d - self.stats['mean']) / (self.stats['std'] + 1e-8)
+            pose_165d = (pose_165d - self.stats['mean']) / (self.stats['std'] + 1e-8)
 
         # Convert to tensor
-        pose_tensor = torch.from_numpy(pose_159d).float()
+        pose_tensor = torch.from_numpy(pose_165d).float()
 
         if self.return_dict:
-            # Reshape to (53, 3) and split into components
-            pose_53x3 = pose_tensor.view(53, 3)
+            # Reshape to (55, 3) and split into components
+            pose_55x3 = pose_tensor.view(55, 3)
 
             return {
-                'global_orient': pose_53x3[0:1],      # (1, 3) - first joint
-                'body_pose': pose_53x3[1:22],         # (21, 3) - body joints
-                'jaw_pose': pose_53x3[22:23],         # (1, 3) - jaw joint
-                'lhand_pose': pose_53x3[23:38],       # (15, 3) - left hand joints
-                'rhand_pose': pose_53x3[38:53],       # (15, 3) - right hand joints
-                'full_pose': pose_53x3                # (53, 3) - everything
+                'global_orient': pose_55x3[0:1],      # (1, 3) - first joint
+                'body_pose': pose_55x3[1:22],         # (21, 3) - body joints
+                'jaw_pose': pose_55x3[22:23],         # (1, 3) - jaw joint
+                'eye_pose': pose_55x3[23:25],         # (2, 3) - eye joints (zeros)
+                'lhand_pose': pose_55x3[25:40],       # (15, 3) - left hand joints
+                'rhand_pose': pose_55x3[40:55],       # (15, 3) - right hand joints
+                'full_pose': pose_55x3                # (55, 3) - everything
             }
         else:
-            # Return as (53, 3) tensor
-            return pose_tensor.view(53, 3)
+            # Return as (55, 3) tensor
+            return pose_tensor.view(55, 3)
 
 
 class ComprehensivePoseDataModule(pl.LightningDataModule):
