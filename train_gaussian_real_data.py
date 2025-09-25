@@ -102,13 +102,61 @@ class GaussianRealDataModule(pl.LightningModule):
             return optimizer
 
 
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description='Train Gaussian Prior with Real SMPL-X Data')
+
+    # Data arguments
+    parser.add_argument('--data_dir', type=str, default='/Users/kenielpeart/Downloads/hand_prior/code',
+                       help='Directory containing NPZ data files')
+    parser.add_argument('--batch_size', type=int, default=32,
+                       help='Batch size for training')
+    parser.add_argument('--num_workers', type=int, default=0,
+                       help='Number of data loading workers')
+
+    # Model arguments
+    parser.add_argument('--lr', type=float, default=1e-2,
+                       help='Learning rate')
+    parser.add_argument('--scheduler_type', type=str, default='step', choices=['step', 'cosine'],
+                       help='Learning rate scheduler type')
+    parser.add_argument('--step_size', type=int, default=30,
+                       help='Step size for step scheduler')
+    parser.add_argument('--gamma', type=float, default=0.5,
+                       help='Gamma for step scheduler')
+
+    # Training arguments
+    parser.add_argument('--max_epochs', type=int, default=20,
+                       help='Maximum number of training epochs')
+    parser.add_argument('--patience', type=int, default=10,
+                       help='Early stopping patience')
+    parser.add_argument('--min_delta', type=float, default=1e-4,
+                       help='Minimum change for early stopping')
+
+    # Logging arguments
+    parser.add_argument('--checkpoint_dir', type=str, default='checkpoints/gaussian-real-data',
+                       help='Directory to save checkpoints')
+    parser.add_argument('--log_every_n_steps', type=int, default=50,
+                       help='Log every N steps')
+
+    # Hardware arguments
+    parser.add_argument('--accelerator', type=str, default='auto',
+                       help='Accelerator to use')
+    parser.add_argument('--devices', type=str, default='auto',
+                       help='Devices to use')
+
+    return parser.parse_args()
+
+
 def train_gaussian_with_real_data():
     """Main training function with real data."""
+    args = parse_args()
+
     print("🔥 Training Gaussian Prior with Real SMPL-X Data")
     print("=" * 60)
+    print(f"Arguments: {vars(args)}")
 
     # Configuration
-    data_dir = "/Users/kenielpeart/Downloads/hand_prior/code"  # Adjust path as needed
+    data_dir = args.data_dir
 
     # Find NPZ files
     npz_files = list(Path(data_dir).glob("*.npz"))
@@ -126,8 +174,8 @@ def train_gaussian_with_real_data():
     print("\n🔧 Setting up data module...")
     data_module = ComprehensivePoseDataModule(
         data_dir=str(data_dir),
-        batch_size=32,
-        num_workers=0,  # Set to 0 for debugging, increase for performance
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
         return_dict=False  # Return raw (53, 3) tensors
     )
 
@@ -138,12 +186,14 @@ def train_gaussian_with_real_data():
     print("\n🔧 Creating Lightning module...")
     model = GaussianRealDataModule(
         data_dir=str(data_dir),
-        lr=1e-2,
-        scheduler_type="step"
+        lr=args.lr,
+        scheduler_type=args.scheduler_type,
+        step_size=args.step_size,
+        gamma=args.gamma
     )
 
     # Create checkpoint directory
-    checkpoint_dir = "checkpoints/gaussian-real-data"
+    checkpoint_dir = args.checkpoint_dir
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     # Setup callbacks
@@ -160,8 +210,8 @@ def train_gaussian_with_real_data():
     early_stopping = EarlyStopping(
         monitor="val/nll",
         mode="min",
-        patience=10,
-        min_delta=1e-4,
+        patience=args.patience,
+        min_delta=args.min_delta,
         verbose=True
     )
 
@@ -176,12 +226,12 @@ def train_gaussian_with_real_data():
 
     # Create trainer
     trainer = pl.Trainer(
-        max_epochs=20,
-        accelerator="auto",
-        devices="auto",
+        max_epochs=args.max_epochs,
+        accelerator=args.accelerator,
+        devices=args.devices,
         logger=logger,
         callbacks=[checkpoint_callback, early_stopping, lr_monitor],
-        log_every_n_steps=50,
+        log_every_n_steps=args.log_every_n_steps,
         val_check_interval=1.0,
         enable_model_summary=True,
         enable_progress_bar=True,
@@ -189,9 +239,10 @@ def train_gaussian_with_real_data():
     )
 
     print(f"🚀 Starting training...")
-    print(f"  Max epochs: 20")
+    print(f"  Max epochs: {args.max_epochs}")
     print(f"  Learning rate: {model.lr}")
     print(f"  Scheduler: {model.scheduler_type}")
+    print(f"  Batch size: {args.batch_size}")
     print(f"  Checkpoints: {checkpoint_dir}")
 
     try:

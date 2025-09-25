@@ -15,6 +15,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 import os
+import argparse
 from pathlib import Path
 
 from global_conditional_flow import CondFlowNet
@@ -173,13 +174,67 @@ class GlobalFlowRealDataModule(pl.LightningModule):
             return optimizer
 
 
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description='Train Global Flow with Real SMPL-X Data')
+
+    # Data arguments
+    parser.add_argument('--data_dir', type=str, default='/Users/kenielpeart/Downloads/hand_prior/code',
+                       help='Directory containing NPZ data files')
+    parser.add_argument('--batch_size', type=int, default=32,
+                       help='Batch size for training')
+    parser.add_argument('--num_workers', type=int, default=0,
+                       help='Number of data loading workers')
+
+    # Model arguments
+    parser.add_argument('--hidden', type=int, default=512,
+                       help='Hidden layer size')
+    parser.add_argument('--K', type=int, default=6,
+                       help='Number of coupling layers')
+    parser.add_argument('--use_actnorm', action='store_true', default=True,
+                       help='Use ActNorm layers')
+    parser.add_argument('--lr', type=float, default=1e-3,
+                       help='Learning rate')
+    parser.add_argument('--scheduler_type', type=str, default='cosine', choices=['cosine', 'plateau'],
+                       help='Learning rate scheduler type')
+    parser.add_argument('--use_conditioning', action='store_true', default=False,
+                       help='Use conditioning (experimental)')
+
+    # Training arguments
+    parser.add_argument('--max_epochs', type=int, default=30,
+                       help='Maximum number of training epochs')
+    parser.add_argument('--patience', type=int, default=10,
+                       help='Early stopping patience')
+    parser.add_argument('--min_delta', type=float, default=1e-4,
+                       help='Minimum change for early stopping')
+    parser.add_argument('--gradient_clip_val', type=float, default=1.0,
+                       help='Gradient clipping value')
+
+    # Logging arguments
+    parser.add_argument('--checkpoint_dir', type=str, default='checkpoints/global-flow-real-data',
+                       help='Directory to save checkpoints')
+    parser.add_argument('--log_every_n_steps', type=int, default=50,
+                       help='Log every N steps')
+
+    # Hardware arguments
+    parser.add_argument('--accelerator', type=str, default='auto',
+                       help='Accelerator to use')
+    parser.add_argument('--devices', type=str, default='auto',
+                       help='Devices to use')
+
+    return parser.parse_args()
+
+
 def train_global_flow_with_real_data():
     """Main training function with real data."""
+    args = parse_args()
+
     print("🔥 Training Global Flow with Real SMPL-X Data")
     print("=" * 60)
+    print(f"Arguments: {vars(args)}")
 
     # Configuration
-    data_dir = "/Users/kenielpeart/Downloads/hand_prior/code"  # Adjust path as needed
+    data_dir = args.data_dir
 
     # Find NPZ files
     npz_files = list(Path(data_dir).glob("*.npz"))
@@ -197,8 +252,8 @@ def train_global_flow_with_real_data():
     print("\n🔧 Setting up data module...")
     data_module = ComprehensivePoseDataModule(
         data_dir=str(data_dir),
-        batch_size=32,
-        num_workers=0,  # Set to 0 for debugging, increase for performance
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
         return_dict=False  # Return raw (53, 3) tensors
     )
 
@@ -209,18 +264,18 @@ def train_global_flow_with_real_data():
     print("\n🔧 Creating Lightning module...")
     model = GlobalFlowRealDataModule(
         data_dir=str(data_dir),
-        hidden=512,
-        K=6,
-        use_actnorm=True,
-        lr=1e-3,
-        scheduler_type="cosine",
-        use_conditioning=False  # Set to True if you want conditioning
+        hidden=args.hidden,
+        K=args.K,
+        use_actnorm=args.use_actnorm,
+        lr=args.lr,
+        scheduler_type=args.scheduler_type,
+        use_conditioning=args.use_conditioning
     )
 
     print(f"Model created with {sum(p.numel() for p in model.parameters())} parameters")
 
     # Create checkpoint directory
-    checkpoint_dir = "checkpoints/global-flow-real-data"
+    checkpoint_dir = args.checkpoint_dir
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     # Setup callbacks
@@ -237,8 +292,8 @@ def train_global_flow_with_real_data():
     early_stopping = EarlyStopping(
         monitor="val/nll",
         mode="min",
-        patience=10,
-        min_delta=1e-4,
+        patience=args.patience,
+        min_delta=args.min_delta,
         verbose=True
     )
 
@@ -253,25 +308,27 @@ def train_global_flow_with_real_data():
 
     # Create trainer
     trainer = pl.Trainer(
-        max_epochs=30,
-        accelerator="auto",
-        devices="auto",
+        max_epochs=args.max_epochs,
+        accelerator=args.accelerator,
+        devices=args.devices,
         logger=logger,
         callbacks=[checkpoint_callback, early_stopping, lr_monitor],
-        log_every_n_steps=50,
+        log_every_n_steps=args.log_every_n_steps,
         val_check_interval=1.0,
         enable_model_summary=True,
         enable_progress_bar=True,
-        gradient_clip_val=1.0,
+        gradient_clip_val=args.gradient_clip_val,
         deterministic=False
     )
 
     print(f"🚀 Starting training...")
-    print(f"  Max epochs: 30")
+    print(f"  Max epochs: {args.max_epochs}")
     print(f"  Learning rate: {model.lr}")
     print(f"  Scheduler: {model.scheduler_type}")
     print(f"  Architecture: {model.flow.K} layers, {model.flow.hidden} hidden")
     print(f"  ActNorm: {model.flow.use_actnorm}")
+    print(f"  Batch size: {args.batch_size}")
+    print(f"  Conditioning: {args.use_conditioning}")
     print(f"  Checkpoints: {checkpoint_dir}")
 
     try:

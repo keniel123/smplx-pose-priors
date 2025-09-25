@@ -73,25 +73,34 @@ python train_hand_vae_lightning.py \
 
 ### 2. Gaussian Prior (Baseline Model)
 ```bash
-# Train simple Gaussian baseline (no arguments - uses hardcoded settings)
+# Basic training (default settings)
 python train_gaussian_real_data.py
+
+# With custom arguments
+python train_gaussian_real_data.py \
+    --lr 1e-2 \
+    --batch_size 32 \
+    --max_epochs 20 \
+    --scheduler_type step
+
+# Different configuration
+python train_gaussian_real_data.py \
+    --lr 5e-3 \
+    --batch_size 64 \
+    --max_epochs 50 \
+    --scheduler_type cosine \
+    --patience 15
 ```
 
-**Default Configuration (edit the script to modify):**
-- Learning rate: `1e-2`
-- Scheduler: `"step"` (reduces LR every 30 epochs)
-- Max epochs: `20`
-- Batch size: `32`
-- Data directory: `/Users/kenielpeart/Downloads/hand_prior/code`
-
-**To modify parameters:** Edit lines 138-141 in `train_gaussian_real_data.py`:
-```python
-model = GaussianRealDataModule(
-    data_dir=str(data_dir),
-    lr=1e-2,           # Change learning rate
-    scheduler_type="step"  # Change scheduler
-)
-```
+**Available Arguments:**
+- `--data_dir`: Data directory (default: current directory)
+- `--batch_size`: Batch size (default: 32)
+- `--lr`: Learning rate (default: 1e-2)
+- `--scheduler_type`: 'step' or 'cosine' (default: step)
+- `--max_epochs`: Training epochs (default: 20)
+- `--patience`: Early stopping patience (default: 10)
+- `--num_workers`: Data loading workers (default: 0)
+- `--accelerator`: Hardware accelerator (default: auto)
 
 **Features:**
 - Fastest training (~5-10 minutes)
@@ -101,32 +110,38 @@ model = GaussianRealDataModule(
 
 ### 3. Joint Flow (Per-Joint Conditional Flows)
 ```bash
-# Train conditional flows per joint (no arguments - uses hardcoded settings)
+# Basic training (default settings)
 python train_joint_flow_real_data.py
+
+# With custom arguments
+python train_joint_flow_real_data.py \
+    --hidden 128 \
+    --K 4 \
+    --lr 1e-3 \
+    --batch_size 16 \
+    --max_epochs 50
+
+# Larger model configuration
+python train_joint_flow_real_data.py \
+    --hidden 256 \
+    --K 6 \
+    --lr 5e-4 \
+    --batch_size 32 \
+    --max_epochs 100 \
+    --scheduler_type plateau
 ```
 
-**Default Configuration (edit the script to modify):**
-- Hidden units: `128`
-- Flow layers (K): `4`
-- Learning rate: `1e-3`
-- Weight decay: `1e-5`
-- Gradient clipping: `1.0`
-- Max epochs: `50`
-- Batch size: `16`
-- Scheduler: `"cosine"`
-
-**To modify parameters:** Edit lines 203-211 in `train_joint_flow_real_data.py`:
-```python
-model = JointFlowRealDataModule(
-    data_dir=str(data_dir),
-    hidden=128,        # Change hidden units
-    K=4,               # Change number of flow layers
-    lr=1e-3,           # Change learning rate
-    weight_decay=1e-5, # Change weight decay
-    grad_clip_val=1.0, # Change gradient clipping
-    scheduler_type="cosine"  # Change scheduler
-)
-```
+**Available Arguments:**
+- `--data_dir`: Data directory (default: current directory)
+- `--batch_size`: Batch size (default: 16)
+- `--hidden`: Hidden layer size (default: 128)
+- `--K`: Number of coupling layers (default: 4)
+- `--lr`: Learning rate (default: 1e-3)
+- `--weight_decay`: Weight decay (default: 1e-5)
+- `--grad_clip_val`: Gradient clipping (default: 1.0)
+- `--scheduler_type`: 'cosine' or 'plateau' (default: cosine)
+- `--max_epochs`: Training epochs (default: 50)
+- `--patience`: Early stopping patience (default: 15)
 
 **Features:**
 - Each joint conditioned on parent joint
@@ -136,32 +151,42 @@ model = JointFlowRealDataModule(
 
 ### 4. Global Flow (Full Pose Flows)
 ```bash
-# Train global pose flow model (no arguments - uses hardcoded settings)
+# Basic training (default settings)
 python train_global_flow_real_data.py
+
+# With custom arguments
+python train_global_flow_real_data.py \
+    --hidden 512 \
+    --K 6 \
+    --lr 1e-3 \
+    --batch_size 32 \
+    --max_epochs 30 \
+    --use_actnorm
+
+# Larger model with conditioning
+python train_global_flow_real_data.py \
+    --hidden 768 \
+    --K 8 \
+    --lr 5e-4 \
+    --batch_size 64 \
+    --max_epochs 50 \
+    --use_actnorm \
+    --use_conditioning \
+    --scheduler_type plateau
 ```
 
-**Default Configuration (edit the script to modify):**
-- Hidden units: `512`
-- Flow layers (K): `6`
-- Learning rate: `1e-3`
-- Max epochs: `30`
-- Batch size: `32`
-- Scheduler: `"cosine"`
-- ActNorm: `True`
-- Conditioning: `False`
-
-**To modify parameters:** Edit lines 210-218 in `train_global_flow_real_data.py`:
-```python
-model = GlobalFlowRealDataModule(
-    data_dir=str(data_dir),
-    hidden=512,           # Change hidden units
-    K=6,                  # Change number of flow layers
-    use_actnorm=True,     # Enable/disable ActNorm
-    lr=1e-3,              # Change learning rate
-    scheduler_type="cosine",  # Change scheduler
-    use_conditioning=False    # Enable conditioning
-)
-```
+**Available Arguments:**
+- `--data_dir`: Data directory (default: current directory)
+- `--batch_size`: Batch size (default: 32)
+- `--hidden`: Hidden layer size (default: 512)
+- `--K`: Number of coupling layers (default: 6)
+- `--lr`: Learning rate (default: 1e-3)
+- `--use_actnorm`: Use ActNorm layers (default: True)
+- `--scheduler_type`: 'cosine' or 'plateau' (default: cosine)
+- `--use_conditioning`: Enable experimental conditioning (default: False)
+- `--max_epochs`: Training epochs (default: 30)
+- `--patience`: Early stopping patience (default: 10)
+- `--gradient_clip_val`: Gradient clipping (default: 1.0)
 
 **Features:**
 - Models entire pose as high-dimensional distribution

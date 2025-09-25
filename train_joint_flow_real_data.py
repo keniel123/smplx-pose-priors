@@ -16,6 +16,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 import os
+import argparse
 from pathlib import Path
 
 from joint_limit_flow import JointLimitFlow
@@ -166,13 +167,65 @@ class JointFlowRealDataModule(pl.LightningModule):
             clip_grad_norm_(self.parameters(), self.grad_clip_val)
 
 
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description='Train Joint Flow with Real SMPL-X Data')
+
+    # Data arguments
+    parser.add_argument('--data_dir', type=str, default='/Users/kenielpeart/Downloads/hand_prior/code',
+                       help='Directory containing NPZ data files')
+    parser.add_argument('--batch_size', type=int, default=16,
+                       help='Batch size for training')
+    parser.add_argument('--num_workers', type=int, default=0,
+                       help='Number of data loading workers')
+
+    # Model arguments
+    parser.add_argument('--hidden', type=int, default=128,
+                       help='Hidden layer size')
+    parser.add_argument('--K', type=int, default=4,
+                       help='Number of coupling layers')
+    parser.add_argument('--lr', type=float, default=1e-3,
+                       help='Learning rate')
+    parser.add_argument('--weight_decay', type=float, default=1e-5,
+                       help='Weight decay')
+    parser.add_argument('--grad_clip_val', type=float, default=1.0,
+                       help='Gradient clipping value')
+    parser.add_argument('--scheduler_type', type=str, default='cosine', choices=['cosine', 'plateau'],
+                       help='Learning rate scheduler type')
+
+    # Training arguments
+    parser.add_argument('--max_epochs', type=int, default=50,
+                       help='Maximum number of training epochs')
+    parser.add_argument('--patience', type=int, default=15,
+                       help='Early stopping patience')
+    parser.add_argument('--min_delta', type=float, default=1e-4,
+                       help='Minimum change for early stopping')
+
+    # Logging arguments
+    parser.add_argument('--checkpoint_dir', type=str, default='checkpoints/joint-flow-real-data',
+                       help='Directory to save checkpoints')
+    parser.add_argument('--log_every_n_steps', type=int, default=50,
+                       help='Log every N steps')
+
+    # Hardware arguments
+    parser.add_argument('--accelerator', type=str, default='auto',
+                       help='Accelerator to use')
+    parser.add_argument('--devices', type=str, default='auto',
+                       help='Devices to use')
+
+    return parser.parse_args()
+
+
 def train_joint_flow_with_real_data():
     """Main training function with real data."""
+    args = parse_args()
+
     print("🔥 Training Joint Flow with Real SMPL-X Data")
     print("=" * 60)
+    print(f"Arguments: {vars(args)}")
 
     # Configuration
-    data_dir = "/Users/kenielpeart/Downloads/hand_prior/code"  # Adjust path as needed
+    data_dir = args.data_dir
 
     # Find NPZ files
     npz_files = list(Path(data_dir).glob("*.npz"))
@@ -190,8 +243,8 @@ def train_joint_flow_with_real_data():
     print("\n🔧 Setting up data module...")
     data_module = ComprehensivePoseDataModule(
         data_dir=str(data_dir),
-        batch_size=16,  # Smaller batch for flows
-        num_workers=0,  # Set to 0 for debugging, increase for performance
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
         return_dict=False  # Return raw (53, 3) tensors
     )
 
@@ -202,18 +255,18 @@ def train_joint_flow_with_real_data():
     print("\n🔧 Creating Lightning module...")
     model = JointFlowRealDataModule(
         data_dir=str(data_dir),
-        hidden=128,
-        K=4,
-        lr=1e-3,
-        weight_decay=1e-5,
-        grad_clip_val=1.0,
-        scheduler_type="cosine"
+        hidden=args.hidden,
+        K=args.K,
+        lr=args.lr,
+        weight_decay=args.weight_decay,
+        grad_clip_val=args.grad_clip_val,
+        scheduler_type=args.scheduler_type
     )
 
     print(f"Model created with {sum(p.numel() for p in model.parameters())} parameters")
 
     # Create checkpoint directory
-    checkpoint_dir = "checkpoints/joint-flow-real-data"
+    checkpoint_dir = args.checkpoint_dir
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     # Setup callbacks
@@ -230,8 +283,8 @@ def train_joint_flow_with_real_data():
     early_stopping = EarlyStopping(
         monitor="val/nll",
         mode="min",
-        patience=15,
-        min_delta=1e-4,
+        patience=args.patience,
+        min_delta=args.min_delta,
         verbose=True
     )
 
@@ -246,25 +299,28 @@ def train_joint_flow_with_real_data():
 
     # Create trainer
     trainer = pl.Trainer(
-        max_epochs=50,
-        accelerator="auto",
-        devices="auto",
+        max_epochs=args.max_epochs,
+        accelerator=args.accelerator,
+        devices=args.devices,
         logger=logger,
         callbacks=[checkpoint_callback, early_stopping, lr_monitor],
-        log_every_n_steps=50,
+        log_every_n_steps=args.log_every_n_steps,
         val_check_interval=1.0,
         enable_model_summary=True,
         enable_progress_bar=True,
-        gradient_clip_val=1.0,
+        gradient_clip_val=args.grad_clip_val,
         deterministic=False
     )
 
     print(f"🚀 Starting training...")
-    print(f"  Max epochs: 50")
+    print(f"  Max epochs: {args.max_epochs}")
     print(f"  Learning rate: {model.lr}")
     print(f"  Weight decay: {model.weight_decay}")
     print(f"  Gradient clipping: {model.grad_clip_val}")
     print(f"  Scheduler: {model.scheduler_type}")
+    print(f"  Batch size: {args.batch_size}")
+    print(f"  Hidden units: {args.hidden}")
+    print(f"  Flow layers: {args.K}")
     print(f"  Checkpoints: {checkpoint_dir}")
 
     try:
