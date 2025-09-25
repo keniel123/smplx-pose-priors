@@ -15,7 +15,11 @@ This repository implements conditional normalizing flows and probabilistic model
 
 ### Environment Setup
 ```bash
-pip install torch pytorch-lightning tensorboard numpy
+# Install all dependencies
+pip install -r requirements.txt
+
+# Or install individual packages:
+pip install torch pytorch-lightning tensorboard numpy matplotlib seaborn tqdm wandb
 ```
 
 ### Data Setup
@@ -32,9 +36,35 @@ Your NPZ files should be in the project directory:
 
 ### 1. Hand VAE (Hand Pose Compression)
 ```bash
-# Train hand pose VAE with encoder/decoder
+# Basic training (default settings)
 python train_hand_vae_lightning.py
+
+# With custom arguments
+python train_hand_vae_lightning.py \
+    --model_type standard \
+    --z_dim 24 \
+    --hidden 256 \
+    --learning_rate 3e-4 \
+    --batch_size 8192 \
+    --max_epochs 100
+
+# SO3 variant for rotation-aware training
+python train_hand_vae_lightning.py \
+    --model_type so3 \
+    --z_dim 32 \
+    --hidden 512
 ```
+
+**Available Arguments:**
+- `--model_type`: Choose 'standard' or 'so3' variant (default: standard)
+- `--z_dim`: Latent dimension (default: 24)
+- `--hidden`: Hidden layer size (default: 256)
+- `--learning_rate`: Learning rate (default: 3e-4)
+- `--batch_size`: Batch size (default: 8192)
+- `--max_epochs`: Training epochs (default: 100)
+- `--data_dir`: Data directory (default: ../data)
+- `--logger`: Use 'tensorboard' or 'wandb' (default: tensorboard)
+
 **Features:**
 - Compresses hand poses to latent space
 - Trains on actual SMPL-X hand data
@@ -43,9 +73,26 @@ python train_hand_vae_lightning.py
 
 ### 2. Gaussian Prior (Baseline Model)
 ```bash
-# Train simple Gaussian baseline
+# Train simple Gaussian baseline (no arguments - uses hardcoded settings)
 python train_gaussian_real_data.py
 ```
+
+**Default Configuration (edit the script to modify):**
+- Learning rate: `1e-2`
+- Scheduler: `"step"` (reduces LR every 30 epochs)
+- Max epochs: `20`
+- Batch size: `32`
+- Data directory: `/Users/kenielpeart/Downloads/hand_prior/code`
+
+**To modify parameters:** Edit lines 138-141 in `train_gaussian_real_data.py`:
+```python
+model = GaussianRealDataModule(
+    data_dir=str(data_dir),
+    lr=1e-2,           # Change learning rate
+    scheduler_type="step"  # Change scheduler
+)
+```
+
 **Features:**
 - Fastest training (~5-10 minutes)
 - Fits Gaussian distributions per joint
@@ -54,9 +101,33 @@ python train_gaussian_real_data.py
 
 ### 3. Joint Flow (Per-Joint Conditional Flows)
 ```bash
-# Train conditional flows per joint
+# Train conditional flows per joint (no arguments - uses hardcoded settings)
 python train_joint_flow_real_data.py
 ```
+
+**Default Configuration (edit the script to modify):**
+- Hidden units: `128`
+- Flow layers (K): `4`
+- Learning rate: `1e-3`
+- Weight decay: `1e-5`
+- Gradient clipping: `1.0`
+- Max epochs: `50`
+- Batch size: `16`
+- Scheduler: `"cosine"`
+
+**To modify parameters:** Edit lines 203-211 in `train_joint_flow_real_data.py`:
+```python
+model = JointFlowRealDataModule(
+    data_dir=str(data_dir),
+    hidden=128,        # Change hidden units
+    K=4,               # Change number of flow layers
+    lr=1e-3,           # Change learning rate
+    weight_decay=1e-5, # Change weight decay
+    grad_clip_val=1.0, # Change gradient clipping
+    scheduler_type="cosine"  # Change scheduler
+)
+```
+
 **Features:**
 - Each joint conditioned on parent joint
 - Respects SMPL-X kinematic constraints
@@ -65,9 +136,33 @@ python train_joint_flow_real_data.py
 
 ### 4. Global Flow (Full Pose Flows)
 ```bash
-# Train global pose flow model
+# Train global pose flow model (no arguments - uses hardcoded settings)
 python train_global_flow_real_data.py
 ```
+
+**Default Configuration (edit the script to modify):**
+- Hidden units: `512`
+- Flow layers (K): `6`
+- Learning rate: `1e-3`
+- Max epochs: `30`
+- Batch size: `32`
+- Scheduler: `"cosine"`
+- ActNorm: `True`
+- Conditioning: `False`
+
+**To modify parameters:** Edit lines 210-218 in `train_global_flow_real_data.py`:
+```python
+model = GlobalFlowRealDataModule(
+    data_dir=str(data_dir),
+    hidden=512,           # Change hidden units
+    K=6,                  # Change number of flow layers
+    use_actnorm=True,     # Enable/disable ActNorm
+    lr=1e-3,              # Change learning rate
+    scheduler_type="cosine",  # Change scheduler
+    use_conditioning=False    # Enable conditioning
+)
+```
+
 **Features:**
 - Models entire pose as high-dimensional distribution
 - Uses ActNorm for training stability
