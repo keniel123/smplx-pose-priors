@@ -21,7 +21,7 @@ data:
   data_dir: "../data"
   splits_dir: "dataset_splits"
   consolidated_dir: null  # Set path for consolidated data, null for regular data
-  num_workers: 4
+  num_workers: 8
 
 logging:
   logger: "tensorboard"  # Options: "tensorboard", "wandb"

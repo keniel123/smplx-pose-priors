@@ -29,7 +29,12 @@ warnings.filterwarnings("ignore", ".*does not have many workers.*")
 from hand_vae_prior import HandVAEPrior
 from hand_vae_prior_so3 import HandVAEPriorSO3
 from hand_vae_datamodule import HandVAEDataModule
-from config_utils import ConfigLoader, create_config_parser, override_config, print_config
+from config_utils import (
+    ConfigLoader,
+    create_config_parser,
+    override_config,
+    print_config,
+)
 
 
 class HandVAELightningModule(pl.LightningModule):
@@ -420,8 +425,9 @@ def main():
     config_parser = create_config_parser()
 
     # Add additional arguments specific to this trainer
-    parser = argparse.ArgumentParser(description='Train Hand VAE Prior',
-                                   parents=[config_parser])
+    parser = argparse.ArgumentParser(
+        description="Train Hand VAE Prior", parents=[config_parser]
+    )
 
     args = parser.parse_args()
 
@@ -439,73 +445,55 @@ def main():
     print_config(config, "Hand VAE Configuration")
 
     # Set experiment name
-    experiment_name = config['logging'].get('experiment_name')
+    experiment_name = config["logging"].get("experiment_name")
     if experiment_name is None:
         experiment_name = f"{config['model']['type']}_z{config['model']['z_dim']}_h{config['model']['hidden']}"
 
     print(f"📊 Experiment: {experiment_name}")
 
-    # Setup data module
-    if config['data']['consolidated_dir']:
-        print(f"📁 Using consolidated data from {config['data']['consolidated_dir']}")
-        # Import consolidated datamodule if needed
-        try:
-            from test_consolidated_vae import ConsolidatedHandDataModule
-            datamodule = ConsolidatedHandDataModule(
-                consolidated_dir=config['data']['consolidated_dir'],
-                batch_size=config['training']['batch_size'],
-                return_dict=False
-            )
-        except ImportError:
-            print("❌ Consolidated datamodule not available, falling back to regular datamodule")
-            datamodule = HandVAEDataModule(
-                data_dir=config['data']['data_dir'],
-                splits_dir=config['data']['splits_dir'],
-                batch_size=config['training']['batch_size'],
-                num_workers=config['data']['num_workers'],
-                return_dict=False,
-                standardize=True,
-            )
-    else:
-        print(f"📁 Using multi-file data from {config['data']['splits_dir']}")
-        datamodule = HandVAEDataModule(
-            data_dir=config['data']['data_dir'],
-            splits_dir=config['data']['splits_dir'],
-            batch_size=config['training']['batch_size'],
-            num_workers=config['data']['num_workers'],
-            return_dict=False,
-            standardize=True,
-        )
+    print(f"📁 Using multi-file data from {config['data']['splits_dir']}")
+    datamodule = HandVAEDataModule(
+        data_dir=config["data"]["data_dir"],
+        splits_dir=config["data"]["splits_dir"],
+        batch_size=config["training"]["batch_size"],
+        num_workers=config["data"]["num_workers"],
+        return_dict=False,
+        standardize=True,
+    )
 
     # Create model
     model = HandVAELightningModule(
-        model_type=config['model']['type'],
-        z_dim=config['model']['z_dim'],
-        hidden=config['model']['hidden'],
-        n_layers=config['model']['n_layers'],
-        dropout=config['model']['dropout'],
-        learning_rate=config['training']['learning_rate'],
-        weight_decay=config['training']['weight_decay'],
-        kl_warmup_epochs=config['training']['kl_warmup_epochs'],
-        beta_max=config['training']['beta_max'],
-        free_bits=config['training']['free_bits'],
+        model_type=config["model"]["type"],
+        z_dim=config["model"]["z_dim"],
+        hidden=config["model"]["hidden"],
+        n_layers=config["model"]["n_layers"],
+        dropout=config["model"]["dropout"],
+        learning_rate=config["training"]["learning_rate"],
+        weight_decay=config["training"]["weight_decay"],
+        kl_warmup_epochs=config["training"]["kl_warmup_epochs"],
+        beta_max=config["training"]["beta_max"],
+        free_bits=config["training"]["free_bits"],
     )
 
     # Setup logger
-    if config['logging']['logger'] == "tensorboard":
+    if config["logging"]["logger"] == "tensorboard":
         logger = TensorBoardLogger(
-            save_dir="logs", name=config['logging']['project_name'], version=experiment_name
+            save_dir="logs",
+            name=config["logging"]["project_name"],
+            version=experiment_name,
         )
-    elif config['logging']['logger'] == "wandb":
-        logger = WandbLogger(project=config['logging']['project_name'], name=experiment_name)
+    elif config["logging"]["logger"] == "wandb":
+        logger = WandbLogger(
+            project=config["logging"]["project_name"], name=experiment_name
+        )
 
     # Setup callbacks
     checkpoint_callback = ModelCheckpoint(
-        dirpath=Path(config['logging']['checkpoint_dir']) / experiment_name,
+        dirpath=Path(config["logging"]["checkpoint_dir"]) / experiment_name,
         filename="hand_vae_{epoch:02d}_{val_loss:.4f}",
         monitor="val/loss",
         mode="min",
-        save_top_k=config['logging']['save_top_k'],
+        save_top_k=config["logging"]["save_top_k"],
         save_last=True,
     )
 
@@ -517,16 +505,16 @@ def main():
 
     # Create trainer
     trainer = pl.Trainer(
-        max_epochs=config['training']['max_epochs'],
-        accelerator=config['hardware']['accelerator'],
-        devices=config['hardware']['devices'],
-        precision=config['hardware']['precision'],
-        strategy=config['hardware']['strategy'],
-        num_nodes=config['hardware']['num_nodes'],
+        max_epochs=config["training"]["max_epochs"],
+        accelerator=config["hardware"]["accelerator"],
+        devices=config["hardware"]["devices"],
+        precision=config["hardware"]["precision"],
+        strategy=config["hardware"]["strategy"],
+        num_nodes=config["hardware"]["num_nodes"],
         logger=logger,
         callbacks=[checkpoint_callback, early_stopping, lr_monitor],
         gradient_clip_val=1.0,
-        log_every_n_steps=config['logging']['log_every_n_steps'],
+        log_every_n_steps=config["logging"]["log_every_n_steps"],
         enable_progress_bar=True,
         enable_model_summary=True,
     )

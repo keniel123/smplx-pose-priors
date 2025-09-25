@@ -20,7 +20,7 @@ training:
 data:
   data_dir: "/Users/kenielpeart/Downloads/hand_prior/code"
   batch_size: 32
-  num_workers: 0
+  num_workers: 8
   return_dict: false
 
 logging:
