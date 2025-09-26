@@ -82,4 +82,6 @@ temp/
 # Configuration files with secrets
 config.yaml
 secrets.yaml
-.env.local
+.env.local# Dataset files - regenerate with scripts
+dataset_splits/*.json
+dataset_splits/*.npz
