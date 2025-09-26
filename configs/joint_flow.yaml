@@ -17,7 +17,8 @@ training:
   min_delta: 1e-4
 
 data:
-  data_dir: "/Users/kenielpeart/Downloads/hand_prior/code"
+  data_dir: "../data"  # Main data directory
+  splits_dir: "dataset_splits"  # Dataset splits directory
   batch_size: 16  # Smaller batch size for flows
   num_workers: 8
   return_dict: false

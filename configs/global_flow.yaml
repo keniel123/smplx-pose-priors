@@ -18,7 +18,8 @@ training:
   gradient_clip_val: 1.0
 
 data:
-  data_dir: "/Users/kenielpeart/Downloads/hand_prior/code"
+  data_dir: "../data"  # Main data directory
+  splits_dir: "dataset_splits"  # Dataset splits directory
   batch_size: 32
   num_workers: 8
   return_dict: false

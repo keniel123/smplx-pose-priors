@@ -1,0 +1,59 @@
+{
+  "total_samples": 1499982,
+  "splits": {
+    "train": 1199985,
+    "val": 149998,
+    "test": 149999
+  },
+  "target_total": 1500000,
+  "high_motion_weight": 0.75,
+  "low_motion_weight": 0.25,
+  "split_ratios": {
+    "train": 0.8,
+    "val": 0.1,
+    "test": 0.1
+  },
+  "high_motion_datasets": [
+    "MotionXmusic",
+    "MotionXperform",
+    "MotionXsports",
+    "MotionXdance",
+    "DanceDB",
+    "EyesJapan",
+    "Bedlam",
+    "MSCOCO",
+    "IDEA400",
+    "HUMAN4D",
+    "GRAB",
+    "MOYO",
+    "TCDHands",
+    "ACCAD",
+    "CMU",
+    "KIT",
+    "HDM05",
+    "SFU",
+    "TotalCapture",
+    "WEIZMANN",
+    "EKUT",
+    "BMLrub",
+    "BMLmovi",
+    "humman",
+    "arctic",
+    "ham"
+  ],
+  "low_motion_datasets": [
+    "signlanguage",
+    "UBody",
+    "entertainment",
+    "tvshow",
+    "livevlog",
+    "fitness",
+    "conductmusic",
+    "magic",
+    "movie",
+    "speech",
+    "talkshow",
+    "videoconference",
+    "singing"
+  ]
+}
