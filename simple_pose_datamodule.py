@@ -96,13 +96,26 @@ class SimplePoseDataset(Dataset):
             poses_53x3 = poses_159.reshape(n_samples, 53, 3)  # Current: 53 joints
             poses_55x3 = np.zeros((n_samples, 55, 3))         # Target: 55 joints
 
-            # Copy joints 0-22 (global orient + body + jaw)
-            poses_55x3[:, :23, :] = poses_53x3[:, :23, :]
+            # Copy joints in correct SMPL-X order:
+            # Source: [global(1), body(21), jaw(1), lhand(15), rhand(15)] = 53 joints
+            # Target: [global(1), body(21), jaw(1), leye(1), reye(1), lhand(15), rhand(15)] = 55 joints
 
-            # Joints 23, 24 (eye joints) stay as zeros
+            # Copy global orient (joint 0)
+            poses_55x3[:, 0, :] = poses_53x3[:, 0, :]
 
-            # Copy joints 25-54 (hands) from source joints 23-52
-            poses_55x3[:, 25:, :] = poses_53x3[:, 23:, :]
+            # Copy body pose (joints 1-21)
+            poses_55x3[:, 1:22, :] = poses_53x3[:, 1:22, :]
+
+            # Copy jaw pose (joint 22)
+            poses_55x3[:, 22, :] = poses_53x3[:, 22, :]
+
+            # Joints 23, 24 (eye joints) stay as zeros - leye_pose, reye_pose
+
+            # Copy left hand pose (joints 25-39) from source joints 23-37
+            poses_55x3[:, 25:40, :] = poses_53x3[:, 23:38, :]
+
+            # Copy right hand pose (joints 40-54) from source joints 38-52
+            poses_55x3[:, 40:55, :] = poses_53x3[:, 38:53, :]
 
             # Flatten back to (N, 165)
             poses_165 = poses_55x3.reshape(n_samples, 165)
@@ -213,11 +226,18 @@ class SimplePoseDataModule(pl.LightningDataModule):
             # Combine and convert to 55 joints format (same as dataset)
             poses_159 = np.concatenate(pose_components, axis=1)
 
-            # Convert to 165D (55 joints)
+            # Convert to 165D (55 joints) - same logic as dataset loading
             poses_53x3 = poses_159.reshape(n_samples, 53, 3)
             poses_55x3 = np.zeros((n_samples, 55, 3))
-            poses_55x3[:, :23, :] = poses_53x3[:, :23, :]  # Copy first 23 joints
-            poses_55x3[:, 25:, :] = poses_53x3[:, 23:, :]  # Copy hands, skip eyes
+
+            # Copy joints in correct SMPL-X order:
+            poses_55x3[:, 0, :] = poses_53x3[:, 0, :]      # global orient
+            poses_55x3[:, 1:22, :] = poses_53x3[:, 1:22, :] # body pose
+            poses_55x3[:, 22, :] = poses_53x3[:, 22, :]     # jaw pose
+            # Eye joints 23, 24 stay as zeros
+            poses_55x3[:, 25:40, :] = poses_53x3[:, 23:38, :] # left hand
+            poses_55x3[:, 40:55, :] = poses_53x3[:, 38:53, :] # right hand
+
             poses_165 = poses_55x3.reshape(n_samples, 165)
 
             print(f"📈 Computing statistics from {poses_165.shape} samples")
