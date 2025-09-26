@@ -3,8 +3,8 @@
 Gaussian Trainer with Real SMPL-X Data
 
 Connects the Gaussian joint limit prior to real SMPL-X pose data
-using the comprehensive data module. Handles joint count conversion
-from 53 joints (data) to 55 joints (model with eye joints).
+using the simple pose data module with consolidated splits. Handles joint
+count conversion from 53 joints (data) to 55 joints (model with eye joints).
 """
 
 import torch
@@ -18,11 +18,11 @@ import argparse
 from pathlib import Path
 
 from joint_limit_gaussian import JointLimitGaussian
-from comprehensive_pose_datamodule import ComprehensivePoseDataModule
+from simple_pose_datamodule import SimplePoseDataModule
 from config_utils import ConfigLoader, create_config_parser, override_config, print_config
 
 
-# Joint conversion now handled in comprehensive_pose_datamodule.py
+# Joint conversion now handled in simple_pose_datamodule.py
 # Data module returns poses directly as (B, 55, 3) with eye joints as zeros
 
 
@@ -33,7 +33,7 @@ class GaussianRealDataModule(pl.LightningModule):
 
     def __init__(
         self,
-        data_dir: str,
+        splits_dir: str,
         lr: float = 1e-2,
         scheduler_type: str = "step",
         step_size: int = 30,
@@ -51,7 +51,7 @@ class GaussianRealDataModule(pl.LightningModule):
         self.scheduler_type = scheduler_type
         self.step_size = step_size
         self.gamma = gamma
-        self.data_dir = data_dir
+        self.splits_dir = splits_dir
 
     def training_step(self, batch, batch_idx):
         """Training step - compute NLL loss."""
@@ -133,24 +133,29 @@ def train_gaussian_with_real_data():
     print_config(config, "Gaussian Prior Configuration")
 
     # Extract configuration values
-    data_dir = config['data']['data_dir']
+    splits_dir = config['data'].get('splits_dir', 'dataset_splits')
 
-    # Find NPZ files
-    npz_files = list(Path(data_dir).glob("*.npz"))
-    if not npz_files:
-        print("❌ No .npz files found! Please ensure your data files are in the directory.")
-        print(f"📁 Looking in: {data_dir}")
-        print("💡 Expected files like: train_poses.npz, val_poses.npz, etc.")
+    # Check for consolidated NPZ files
+    splits_path = Path(splits_dir)
+    required_files = ['train.npz', 'val.npz', 'test.npz']
+    missing_files = [f for f in required_files if not (splits_path / f).exists()]
+
+    if missing_files:
+        print("❌ Missing consolidated split files! Please run quick_consolidated_splits.py first.")
+        print(f"📁 Looking in: {splits_dir}")
+        print(f"💡 Missing files: {missing_files}")
         return False
 
-    print(f"📊 Found {len(npz_files)} NPZ files:")
-    for f in npz_files:
-        print(f"  • {f.name}")
+    print(f"📊 Found consolidated split files in {splits_dir}:")
+    for f in required_files:
+        file_path = splits_path / f
+        file_size = file_path.stat().st_size / (1024*1024)  # MB
+        print(f"  • {f} ({file_size:.1f} MB)")
 
     # Create data module
-    print("\n🔧 Setting up data module...")
-    data_module = ComprehensivePoseDataModule(
-        data_dir=str(data_dir),
+    print("\n🔧 Setting up SimplePoseDataModule...")
+    data_module = SimplePoseDataModule(
+        splits_dir=str(splits_dir),
         batch_size=config['data']['batch_size'],
         num_workers=config['data']['num_workers'],
         return_dict=config['data']['return_dict']
@@ -162,7 +167,7 @@ def train_gaussian_with_real_data():
     # Create model
     print("\n🔧 Creating Lightning module...")
     model = GaussianRealDataModule(
-        data_dir=str(data_dir),
+        splits_dir=str(splits_dir),
         lr=config['training']['learning_rate'],
         scheduler_type=config['training']['scheduler_type'],
         step_size=config['training']['step_size'],
