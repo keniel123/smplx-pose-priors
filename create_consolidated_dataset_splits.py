@@ -31,7 +31,10 @@ class ConsolidatedDatasetCreator:
             "TCDHands", "TotalCapture", "WEIZMANN", "arctic", "conductmusic",
             "entertainment", "fitness", "ham", "humman", "idea400", "livevlog",
             "magic", "movie", "mscoco", "signlanguage", "singing", "speech",
-            "talkshow", "tvshow", "videoconference"
+            "talkshow", "tvshow", "videoconference", "MotionXanimation",
+            "MotionXhaa500", "DFaust", "SSM", "CNRS", "HumanEva", "interview",
+            "kungfu", "Mosh", "olympic", "online_class", "PosePrior", "SOMA",
+            "SignAvatarsLang-001", "SignAvatarsWord", "Transitions"
         ]
 
     def scan_available_datasets(self) -> Dict[str, Dict[str, int]]:
@@ -82,13 +85,16 @@ class ConsolidatedDatasetCreator:
         high_motion_patterns = [
             'motion', 'dance', 'grab', 'moyo', 'accad', 'cmu', 'kit', 'hdm05',
             'sfu', 'totalcapture', 'weizmann', 'ekut', 'bml', 'human', 'arctic',
-            'ham', 'eyes', 'bedlam', 'mscoco', 'idea400', 'tcd'
+            'ham', 'eyes', 'bedlam', 'mscoco', 'idea400', 'tcd', 'kungfu', 'soma',
+            'transitions', 'cnrs', 'mosh', 'humman', 'poseprior',
+            'dfaust', 'ssm'
         ]
 
         # Low motion patterns
         low_motion_patterns = [
             'sign', 'ubody', 'entertainment', 'tv', 'vlog', 'fitness', 'conduct',
-            'magic', 'movie', 'speech', 'talk', 'video', 'sing'
+            'magic', 'movie', 'speech', 'talk', 'video', 'sing', 'olympic',
+            'online_class', 'interview'
         ]
 
         categorized = {
@@ -133,6 +139,31 @@ class ConsolidatedDatasetCreator:
         print(f"  Low motion datasets: {len(categorized['low_motion'])}, Total samples: {low_motion_total:,}")
         print(f"  Unknown datasets: {len(categorized['unknown'])}, Total samples: {unknown_total:,}")
 
+        # Apply caps to prevent dataset dominance
+        max_samples_per_dataset = 500_000  # Cap per dataset
+
+        def apply_caps(dataset_list, available_datasets):
+            """Apply caps to large datasets and recalculate totals"""
+            total_before = sum(available_datasets[name]['sample_count'] for name in dataset_list)
+            capped_datasets = {}
+
+            for name in dataset_list:
+                original_count = available_datasets[name]['sample_count']
+                capped_count = min(original_count, max_samples_per_dataset)
+                capped_datasets[name] = capped_count
+
+                if original_count > max_samples_per_dataset:
+                    print(f"  📊 Capping {name}: {original_count:,} -> {capped_count:,} samples")
+
+            total_after = sum(capped_datasets.values())
+            print(f"  📊 Total after caps: {total_before:,} -> {total_after:,} samples")
+            return capped_datasets, total_after
+
+        print(f"\n🔒 Applying caps to prevent dataset dominance (max {max_samples_per_dataset:,} per dataset):")
+        capped_high, high_motion_total = apply_caps(categorized['high_motion'], available_datasets)
+        capped_low, low_motion_total = apply_caps(categorized['low_motion'], available_datasets)
+        capped_unknown, unknown_total = apply_caps(categorized['unknown'], available_datasets)
+
         # Calculate sampling rates
         sampling_strategy = {}
 
@@ -140,24 +171,28 @@ class ConsolidatedDatasetCreator:
         if high_motion_total > 0:
             high_rate = min(1.0, high_motion_target / high_motion_total)
             for dataset_name in categorized['high_motion']:
-                samples_available = available_datasets[dataset_name]['sample_count']
+                samples_available = capped_high[dataset_name]  # Use capped count
                 samples_to_take = int(samples_available * high_rate)
                 sampling_strategy[dataset_name] = {
                     'samples_to_take': samples_to_take,
                     'sampling_rate': high_rate,
-                    'category': 'high_motion'
+                    'category': 'high_motion',
+                    'original_count': available_datasets[dataset_name]['sample_count'],
+                    'capped_count': samples_available
                 }
 
         # Low motion sampling
         if low_motion_total > 0:
             low_rate = min(1.0, low_motion_target / low_motion_total)
             for dataset_name in categorized['low_motion']:
-                samples_available = available_datasets[dataset_name]['sample_count']
+                samples_available = capped_low[dataset_name]  # Use capped count
                 samples_to_take = int(samples_available * low_rate)
                 sampling_strategy[dataset_name] = {
                     'samples_to_take': samples_to_take,
                     'sampling_rate': low_rate,
-                    'category': 'low_motion'
+                    'category': 'low_motion',
+                    'original_count': available_datasets[dataset_name]['sample_count'],
+                    'capped_count': samples_available
                 }
 
         # Unknown datasets get medium priority
@@ -165,12 +200,14 @@ class ConsolidatedDatasetCreator:
         if unknown_total > 0 and unknown_target > 0:
             unknown_rate = min(1.0, unknown_target / unknown_total)
             for dataset_name in categorized['unknown']:
-                samples_available = available_datasets[dataset_name]['sample_count']
+                samples_available = capped_unknown[dataset_name]  # Use capped count
                 samples_to_take = int(samples_available * unknown_rate)
                 sampling_strategy[dataset_name] = {
                     'samples_to_take': samples_to_take,
                     'sampling_rate': unknown_rate,
-                    'category': 'unknown'
+                    'category': 'unknown',
+                    'original_count': available_datasets[dataset_name]['sample_count'],
+                    'capped_count': samples_available
                 }
 
         # Print sampling strategy
